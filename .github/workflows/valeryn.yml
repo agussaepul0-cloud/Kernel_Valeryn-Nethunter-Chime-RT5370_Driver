@@ -1,4 +1,4 @@
-Name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
 
 on:
   workflow_dispatch:
@@ -80,7 +80,7 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_CRYPTO
 
-          # 3. Kritis: Regenerasi .config agar Kconfig merapikan kaitan dependensi driver
+          # 3. Regenerasi .config
           make O=out "${MAKE_ARGS[@]}" olddefconfig
 
           # 4. Kompilasi Kernel Image, DTB, & DTBO
