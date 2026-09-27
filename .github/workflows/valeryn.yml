@@ -45,6 +45,13 @@ jobs:
           # 1. Load Defconfig Murni Bawaan Redmi 9T / Chime
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
 
+          # --- PEMANGKASAN TOTAL GAIN AUDIO (AGAR 100% TIDAK SEMBER) ---
+          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
+          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
+          # -------------------------------------------------------------
+
           # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
           scripts/config --file out/.config --enable CONFIG_NET
           scripts/config --file out/.config --enable CONFIG_WIRELESS
@@ -60,7 +67,7 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_CFG80211_CERTIFICATION_ONUS
           scripts/config --file out/.config --disable CONFIG_CFG80211_REQUIRE_SIGNED_REGDB
 
-          # USB OTG & Firmware Loading Support (Plug & Play Support)
+          # USB OTG & Firmware Loading Support
           scripts/config --file out/.config --enable CONFIG_FW_LOADER
           scripts/config --file out/.config --enable CONFIG_EXTRA_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_USB_OTG
@@ -106,7 +113,7 @@ jobs:
             echo "Error: Image file not found!" && exit 1
           fi
 
-          # Salin file DTB persis lokasi yang dibutuhkan AnyKernel3
+          # Salin file DTB
           if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
             cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
           elif [ -f kernel/out/arch/arm64/boot/dtb ]; then
@@ -117,6 +124,10 @@ jobs:
 
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
+          # Salin modul kernel agar driver audio & hardware sinkron (do.modules=1)
+          mkdir -p AnyKernel3/modules/system/lib/modules
+          find kernel/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/system/lib/modules/ \;
+
           cd AnyKernel3
 
           cat << 'EOF' > anykernel.sh
@@ -126,9 +137,9 @@ jobs:
           ### AnyKernel setup
           # begin properties
           properties() { '
-          kernel.string=Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+          kernel.string=chimeOSS Kernel
           do.devicecheck=0
-          do.modules=0
+          do.modules=1
           do.systemless=1
           do.cleanup=1
           do.cleanuponabort=0
@@ -136,7 +147,7 @@ jobs:
           supported.patchlevels=
           '; } # end properties
 
-          ## Boot Shell Variables (Pencegahan ERROR 1 TWRP)
+          ## Boot Shell Variables (Anti Error 1 TWRP)
           if [ -b /dev/block/by-name/boot ]; then
             block=/dev/block/by-name/boot;
           elif [ -b /dev/block/bootdevice/by-name/boot ]; then
