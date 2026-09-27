@@ -23,7 +23,7 @@ jobs:
           git clone https://github.com/crdroidandroid/android_kernel_xiaomi_chime --depth=1 kernel
           git clone https://github.com/kdrag0n/proton-clang --depth=1 clang
 
-      - name: Configure Driver RT5370 & Build Kernel
+      - name: Configure Driver RT5370 & Patch Audio Gain (Fix Volume Leveler)
         run: |
           cd kernel
 
@@ -37,6 +37,13 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           )
+
+          # MEMOTONG GAIN AUDIO DRIVER C-CODE KE 0x6E (70 DESIMAL)
+          # Solusi agar Dolby Atmos + Volume Leveler Aktif di Volume 100% Tetap Jernih Bebas Sember
+          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x84/0x6E/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x84/0x6E/g' {} + 2>/dev/null || true
+          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x78/0x6E/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x78/0x6E/g' {} + 2>/dev/null || true
 
           # Bersihkan direktori output
           rm -rf out
