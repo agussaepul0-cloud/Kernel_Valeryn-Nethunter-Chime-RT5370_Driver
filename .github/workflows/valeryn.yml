@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Install Dependencies
         run: |
@@ -36,14 +38,14 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           )
 
-          # Clean output directory
+          # Bersihkan direktori output
           rm -rf out
           mkdir -p out
 
-          # 1. Load Defconfig Resmi Chime (bengal-perf)
+          # 1. Load Defconfig Murni Stock Bawaan Xiaomi
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
 
-          # 2. Injeksi Configuration Wireless & Packet Injection
+          # 2. Injeksi Minimum Khusus Driver Wireless NetHunter RT5370
           scripts/config --file out/.config --enable CONFIG_NET
           scripts/config --file out/.config --enable CONFIG_WIRELESS
           scripts/config --file out/.config --enable CONFIG_WLAN
@@ -58,14 +60,12 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_CFG80211_CERTIFICATION_ONUS
           scripts/config --file out/.config --disable CONFIG_CFG80211_REQUIRE_SIGNED_REGDB
 
-          # Injeksi NetHunter Core (TUN, BadUSB, HID Emulation)
+          # NetHunter Core Dasar (TUN, HID/BadUSB)
           scripts/config --file out/.config --enable CONFIG_TUN
           scripts/config --file out/.config --enable CONFIG_USB_CONFIGFS_F_HID
           scripts/config --file out/.config --enable CONFIG_USB_F_HID
-          scripts/config --file out/.config --enable CONFIG_USB_CONFIGFS_F_ACC
-          scripts/config --file out/.config --enable CONFIG_USB_CONFIGFS_F_UVC
 
-          # Injeksi Driver RT5370 (Ralink RT2X00 USB)
+          # Driver RT5370
           scripts/config --file out/.config --enable CONFIG_STAGING
           scripts/config --file out/.config --enable CONFIG_USB_SUPPORT
           scripts/config --file out/.config --enable CONFIG_USB
@@ -80,7 +80,7 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_CRYPTO
 
-          # 3. Regenerasi .config
+          # 3. Regenerasi Kconfig Dependensi
           make O=out "${MAKE_ARGS[@]}" olddefconfig
 
           # 4. Kompilasi Kernel Image, DTB, & DTBO
