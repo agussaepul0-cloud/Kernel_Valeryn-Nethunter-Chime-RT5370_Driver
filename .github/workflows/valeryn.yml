@@ -23,7 +23,7 @@ jobs:
           git clone https://github.com/crdroidandroid/android_kernel_xiaomi_chime --depth=1 kernel
           git clone https://github.com/kdrag0n/proton-clang --depth=1 clang
 
-      - name: Configure Driver RT5370 & Patch Audio Gain (Fix Volume Leveler)
+      - name: Configure Driver RT5370 & Patch Gain to 50
         run: |
           cd kernel
 
@@ -38,21 +38,20 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           )
 
-          # MEMOTONG GAIN AUDIO DRIVER C-CODE KE 0x6E (70 DESIMAL)
-          # Solusi agar Dolby Atmos + Volume Leveler Aktif di Volume 100% Tetap Jernih Bebas Sember
-          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x84/0x6E/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x84/0x6E/g' {} + 2>/dev/null || true
-          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x78/0x6E/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x78/0x6E/g' {} + 2>/dev/null || true
+          # MEMOTONG GAIN AUDIO C-CODE DRIVER KE 0x32 (50 DESIMAL)
+          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x84/0x32/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x84/0x32/g' {} + 2>/dev/null || true
+          find techpack/audio/ -type f -name "*.c" -exec sed -i 's/0x78/0x32/g' {} + 2>/dev/null || true
+          find sound/soc/codecs/ -type f -name "*.c" -exec sed -i 's/0x78/0x32/g' {} + 2>/dev/null || true
 
           # Bersihkan direktori output
           rm -rf out
           mkdir -p out
 
-          # 1. Load Defconfig Murni Stock Bawaan Xiaomi
+          # 1. Load Defconfig Murni
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
 
-          # 2. Injeksi Minimum Khusus Driver Wireless NetHunter RT5370
+          # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
           scripts/config --file out/.config --enable CONFIG_NET
           scripts/config --file out/.config --enable CONFIG_WIRELESS
           scripts/config --file out/.config --enable CONFIG_WLAN
@@ -67,12 +66,10 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_CFG80211_CERTIFICATION_ONUS
           scripts/config --file out/.config --disable CONFIG_CFG80211_REQUIRE_SIGNED_REGDB
 
-          # NetHunter Core Dasar (TUN, HID/BadUSB)
           scripts/config --file out/.config --enable CONFIG_TUN
           scripts/config --file out/.config --enable CONFIG_USB_CONFIGFS_F_HID
           scripts/config --file out/.config --enable CONFIG_USB_F_HID
 
-          # Driver RT5370
           scripts/config --file out/.config --enable CONFIG_STAGING
           scripts/config --file out/.config --enable CONFIG_USB_SUPPORT
           scripts/config --file out/.config --enable CONFIG_USB
@@ -90,10 +87,10 @@ jobs:
           # 3. Regenerasi Kconfig Dependensi
           make O=out "${MAKE_ARGS[@]}" olddefconfig
 
-          # 4. Kompilasi Kernel Image, DTB, & DTBO
+          # 4. Kompilasi Kernel Image & DTB
           make -j$(nproc --all) O=out "${MAKE_ARGS[@]}" Image dtbs dtbo.img || make -j$(nproc --all) O=out "${MAKE_ARGS[@]}" Image
 
-      - name: Repack Installer AnyKernel3
+      - name: Repack Installer AnyKernel3 (Berbasis Lilium Fixed)
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
 
@@ -104,9 +101,15 @@ jobs:
             echo "Error: Image file not found!" && exit 1
           fi
 
-          # Salin DTB / DTBO jika terbentuk
-          [ -f kernel/out/arch/arm64/boot/dtb.img ] && cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
-          [ -f kernel/out/arch/arm64/boot/dtb ] && cp kernel/out/arch/arm64/boot/dtb AnyKernel3/dtb
+          # Salin file DTB persis lokasi yang dibutuhkan AnyKernel3
+          if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
+            cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
+          elif [ -f kernel/out/arch/arm64/boot/dtb ]; then
+            cp kernel/out/arch/arm64/boot/dtb AnyKernel3/dtb
+          elif [ -f kernel/out/arch/arm64/boot/dts/vendor/qcom/bengal.dtb ]; then
+            cp kernel/out/arch/arm64/boot/dts/vendor/qcom/bengal.dtb AnyKernel3/dtb
+          fi
+
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
           cd AnyKernel3
@@ -115,6 +118,8 @@ jobs:
           ### AnyKernel3 Ramdisk Mod Script
           ## osm0sis @ xda-developers
 
+          ### AnyKernel setup
+          # begin properties
           properties() { '
           kernel.string=Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
           do.devicecheck=0
@@ -124,16 +129,24 @@ jobs:
           do.cleanuponabort=0
           supported.versions=
           supported.patchlevels=
-          '; }
+          '; } # end properties
 
+          ## boot shell variables
           block=/dev/block/bootdevice/by-name/boot;
           is_slot_device=0;
           ramdisk_compression=auto;
           patch_vbmeta_flag=auto;
 
+          # import functions/variables and setup patching - see for ref
           . tools/ak3-core.sh && attributes;
 
+          # boot install
           dump_boot;
+
+          # Use the provided dtb (Sesuai Struktur Kernel Lilium)
+          if [ -f /tmp/anykernel/dtb ]; then
+            mv /tmp/anykernel/dtb /tmp/anykernel/split_img/
+          fi
 
           # Service Double Tap To Wake (DT2W)
           if [ -f /sys/touchpanel/double_tap ]; then
@@ -149,6 +162,8 @@ jobs:
 
           write_boot;
           EOF
+
+          chmod -R 755 tools/
 
           zip -r9 Kernel_Valeryn-Nethunter-Chime-RT5370_Driver.zip * -x .git README.md
 
