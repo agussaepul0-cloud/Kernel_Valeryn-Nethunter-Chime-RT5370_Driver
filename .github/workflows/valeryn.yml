@@ -1,4 +1,4 @@
-Name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
 
 on:
   workflow_dispatch:
