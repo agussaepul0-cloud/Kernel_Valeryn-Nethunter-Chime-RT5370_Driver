@@ -1,4 +1,4 @@
-name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+Name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
 
 on:
   workflow_dispatch:
@@ -20,7 +20,8 @@ jobs:
 
       - name: Clone Kernel Source & Toolchain
         run: |
-          git clone https://github.com/crdroidandroid/android_kernel_xiaomi_chime --depth=1 kernel
+          # Menggunakan source PixelExperience yang stabil untuk audio Chime
+          git clone https://github.com/PixelExperience-Devices/android_kernel_xiaomi_chime -b thirteen --depth=1 kernel || git clone https://github.com/PixelExperience-Devices/android_kernel_xiaomi_chime --depth=1 kernel
           git clone https://github.com/kdrag0n/proton-clang --depth=1 clang
 
       - name: Configure Kernel
@@ -42,15 +43,8 @@ jobs:
           rm -rf out
           mkdir -p out
 
-          # 1. Load Defconfig Murni Bawaan Redmi 9T / Chime
-          make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
-
-          # --- PEMANGKASAN TOTAL GAIN AUDIO (AGAR 100% TIDAK SEMBER) ---
-          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
-          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
-          # -------------------------------------------------------------
+          # 1. Load Defconfig Murni Xiaomi Chime
+          make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig || make O=out "${MAKE_ARGS[@]}" bengal-perf_defconfig
 
           # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
           scripts/config --file out/.config --enable CONFIG_NET
@@ -93,7 +87,7 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_CRYPTO
 
-          # 3. Aktifkan DT2W secara Default di Level Kernel
+          # 3. Aktifkan DT2W di Level Kernel
           scripts/config --file out/.config --enable CONFIG_TOUCHSCREEN_DOUBLE_TAP
 
           # 4. Regenerasi Kconfig Dependensi
@@ -124,7 +118,7 @@ jobs:
 
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
-          # Salin modul kernel agar driver audio & hardware sinkron (do.modules=1)
+          # Salin modul kernel
           mkdir -p AnyKernel3/modules/system/lib/modules
           find kernel/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/system/lib/modules/ \;
 
@@ -137,7 +131,7 @@ jobs:
           ### AnyKernel setup
           # begin properties
           properties() { '
-          kernel.string=chimeOSS Kernel
+          kernel.string=chime-PE Kernel NetHunter
           do.devicecheck=0
           do.modules=1
           do.systemless=1
@@ -147,7 +141,7 @@ jobs:
           supported.patchlevels=
           '; } # end properties
 
-          ## Boot Shell Variables (Anti Error 1 TWRP)
+          ## Boot Shell Variables
           if [ -b /dev/block/by-name/boot ]; then
             block=/dev/block/by-name/boot;
           elif [ -b /dev/block/bootdevice/by-name/boot ]; then
