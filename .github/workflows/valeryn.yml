@@ -23,7 +23,7 @@ jobs:
           git clone https://github.com/crdroidandroid/android_kernel_xiaomi_chime --depth=1 kernel
           git clone https://github.com/kdrag0n/proton-clang --depth=1 clang
 
-      - name: Configure Kernel
+      - name: Configure & Build Kernel
         run: |
           cd kernel
 
@@ -34,25 +34,28 @@ jobs:
           MAKE_ARGS=(
             CC=clang
             LLVM=1
+            LLVM_IAS=1
             CROSS_COMPILE=aarch64-linux-gnu-
             CROSS_COMPILE_ARM32=arm-linux-gnueabi-
           )
 
-          # Bersihkan direktori output
+          # Clean Output Directory
           rm -rf out
           mkdir -p out
 
-          # --- HAPUS AUDIO CRDROID & GANTI DENGAN AUDIO RESMI XIAOMI ---
-          rm -rf techpack/audio
-          git clone https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b chime-r-oss --depth=1 xiaomi_official
-          cp -r xiaomi_official/techpack/audio techpack/audio
-          rm -rf xiaomi_official
-          # -------------------------------------------------------------
-
-          # 1. Load Defconfig Murni Bawaan Redmi 9T / Chime
+          # 1. Load Defconfig
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
 
-          # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
+          # --- KOREKSI DIGITAL GAIN AUDIO SPEAKER (PANGKAS 50%) ---
+          if [ -d sound/soc/codecs ]; then
+            find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/max_val = 128/max_val = 64/g' {} + 2>/dev/null || true
+          fi
+          if [ -d techpack/audio ]; then
+            find techpack/audio/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/AMP_GAIN_DEFAULT 0x7FFF/AMP_GAIN_DEFAULT 0x3FFF/g' {} + 2>/dev/null || true
+          fi
+          # --------------------------------------------------------
+
+          # 2. Configuration Injection for NetHunter & Driver RT5370
           scripts/config --file out/.config --enable CONFIG_NET
           scripts/config --file out/.config --enable CONFIG_WIRELESS
           scripts/config --file out/.config --enable CONFIG_WLAN
@@ -67,13 +70,13 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_CFG80211_CERTIFICATION_ONUS
           scripts/config --file out/.config --disable CONFIG_CFG80211_REQUIRE_SIGNED_REGDB
 
-          # USB OTG & Firmware Loading Support
+          # USB OTG & Firmware Loading
           scripts/config --file out/.config --enable CONFIG_FW_LOADER
           scripts/config --file out/.config --enable CONFIG_EXTRA_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_USB_OTG
           scripts/config --file out/.config --enable CONFIG_USB_MON
 
-          # HID & Tunneling Support
+          # HID & Tunneling
           scripts/config --file out/.config --enable CONFIG_TUN
           scripts/config --file out/.config --enable CONFIG_USB_CONFIGFS_F_HID
           scripts/config --file out/.config --enable CONFIG_USB_F_HID
@@ -93,27 +96,27 @@ jobs:
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_FIRMWARE
           scripts/config --file out/.config --enable CONFIG_RT2X00_LIB_CRYPTO
 
-          # 3. Aktifkan DT2W secara Default di Level Kernel
+          # DT2W Support
           scripts/config --file out/.config --enable CONFIG_TOUCHSCREEN_DOUBLE_TAP
 
-          # 4. Regenerasi Kconfig Dependensi
+          # 3. Update Defconfig
           make O=out "${MAKE_ARGS[@]}" olddefconfig
 
-          # 5. Kompilasi Kernel Image & DTB
+          # 4. Build Kernel Image & DTB
           make -j$(nproc --all) O=out "${MAKE_ARGS[@]}" Image dtbs dtbo.img || make -j$(nproc --all) O=out "${MAKE_ARGS[@]}" Image
 
       - name: Repack Installer AnyKernel3
         run: |
           git clone https://github.com/osm0sis/AnyKernel3 --depth=1 AnyKernel3
 
-          # Salin Image Kernel
+          # Copy Kernel Image
           if [ -f kernel/out/arch/arm64/boot/Image ]; then
             cp kernel/out/arch/arm64/boot/Image AnyKernel3/Image
           else
             echo "Error: Image file not found!" && exit 1
           fi
 
-          # Salin file DTB & DTBO
+          # Copy DTB & DTBO
           if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
             cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
           elif [ -f kernel/out/arch/arm64/boot/dtb ]; then
@@ -124,21 +127,15 @@ jobs:
 
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
-          # Salin modul kernel
-          mkdir -p AnyKernel3/modules/system/lib/modules
-          find kernel/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/system/lib/modules/ \;
-
           cd AnyKernel3
 
-          # --- FIX ERROR 1 TWRP (Manual Block Boot Definition) ---
+          # Membuat anykernel.sh dengan path blok eksplisit untuk Redmi 9T (Chime)
           cat << 'EOF' > anykernel.sh
-          # AnyKernel3 Ramdisk Mod Script
-          # osm0sis @ xda-developers
-
+          # AnyKernel3 Setup
           properties() { '
-          kernel.string=chimeOSS Kernel by Valeryn
+          kernel.string=Valeryn Kernel - NetHunter Chime
           do.devicecheck=0
-          do.modules=1
+          do.modules=0
           do.systemless=1
           do.cleanup=1
           do.cleanuponabort=0
@@ -146,28 +143,22 @@ jobs:
           supported.patchlevels=
           '; }
 
-          block=/dev/block/bootdevice/by-name/boot;
+          # Path blok eksplisit agar TWRP tidak gagal mendeteksi partisi boot
+          block=/dev/block/by-name/boot;
           is_slot_device=0;
           ramdisk_compression=auto;
           patch_vbmeta_flag=auto;
 
-          . tools/ak3-core.sh
+          . tools/ak3-core.sh;
 
+          # Flash Process
           dump_boot;
 
           if [ -f /tmp/anykernel/dtb ]; then
-            mv /tmp/anykernel/dtb /tmp/anykernel/split_img/
-          fi
+            cp /tmp/anykernel/dtb /tmp/anykernel/split_img/dtb;
+          fi;
 
           write_boot;
-
-          # Service Double Tap To Wake (DT2W) Auto Enable
-          if [ -d /data/adb/service.d ]; then
-            echo '#!/system/bin/sh' > /data/adb/service.d/dt2w.sh
-            echo 'sleep 5' >> /data/adb/service.d/dt2w.sh
-            echo 'echo 1 > /sys/touchpanel/double_tap' >> /data/adb/service.d/dt2w.sh
-            chmod 755 /data/adb/service.d/dt2w.sh
-          fi
           EOF
 
           chmod -R 755 tools/
