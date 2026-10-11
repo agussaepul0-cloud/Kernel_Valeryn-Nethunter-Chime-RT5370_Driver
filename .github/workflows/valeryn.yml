@@ -1,4 +1,4 @@
-name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+Name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
 
 on:
   workflow_dispatch:
@@ -45,11 +45,9 @@ jobs:
           # 1. Load Defconfig Murni Bawaan Redmi 9T / Chime
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
 
-          # --- PEMANGKASAN TOTAL GAIN AUDIO (AGAR 100% TIDAK SEMBER) ---
-          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x84/0x18/g' {} + 2>/dev/null || true
-          find techpack/audio/sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
-          find sound/soc/codecs/ -type f \( -name "*.c" -o -name "*.h" \) -exec sed -i 's/0x60/0x18/g' {} + 2>/dev/null || true
+          # --- FIX AUDIO SEMBER (DTS & Kernel Config Level) ---
+          find techpack/audio/ -type f \( -name "*.dtsi" -o -name "*.dts" \) -exec sed -i 's/qcom,mbhc-gnd-swh;/ \/\/ qcom,mbhc-gnd-swh;/g' {} + 2>/dev/null || true
+          scripts/config --file out/.config --disable CONFIG_SND_SOC_WCD_MBHC
           # -------------------------------------------------------------
 
           # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
@@ -113,7 +111,7 @@ jobs:
             echo "Error: Image file not found!" && exit 1
           fi
 
-          # Salin file DTB
+          # Salin file DTB & DTBO
           if [ -f kernel/out/arch/arm64/boot/dtb.img ]; then
             cp kernel/out/arch/arm64/boot/dtb.img AnyKernel3/dtb
           elif [ -f kernel/out/arch/arm64/boot/dtb ]; then
@@ -124,20 +122,19 @@ jobs:
 
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
-          # Salin modul kernel agar driver audio & hardware sinkron (do.modules=1)
+          # Salin modul kernel
           mkdir -p AnyKernel3/modules/system/lib/modules
           find kernel/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/system/lib/modules/ \;
 
           cd AnyKernel3
 
+          # --- FIX ERROR 1 TWRP ---
           cat << 'EOF' > anykernel.sh
-          ### AnyKernel3 Ramdisk Mod Script
-          ## osm0sis @ xda-developers
+          # AnyKernel3 Ramdisk Mod Script
+          # osm0sis @ xda-developers
 
-          ### AnyKernel setup
-          # begin properties
           properties() { '
-          kernel.string=chimeOSS Kernel
+          kernel.string=chimeOSS Kernel by Valeryn
           do.devicecheck=0
           do.modules=1
           do.systemless=1
@@ -145,49 +142,33 @@ jobs:
           do.cleanuponabort=0
           supported.versions=
           supported.patchlevels=
-          '; } # end properties
+          '; }
 
-          ## Boot Shell Variables (Anti Error 1 TWRP)
-          if [ -b /dev/block/by-name/boot ]; then
-            block=/dev/block/by-name/boot;
-          elif [ -b /dev/block/bootdevice/by-name/boot ]; then
-            block=/dev/block/bootdevice/by-name/boot;
-          else
-            block=auto;
-          fi
-
+          block=auto;
           is_slot_device=0;
           ramdisk_compression=auto;
           patch_vbmeta_flag=auto;
 
-          # import functions/variables and setup patching
-          . tools/ak3-core.sh && attributes;
+          . tools/ak3-core.sh
 
-          # boot install
           dump_boot;
 
-          # Use the provided dtb
           if [ -f /tmp/anykernel/dtb ]; then
             mv /tmp/anykernel/dtb /tmp/anykernel/split_img/
           fi
 
-          # Service Double Tap To Wake (DT2W) Auto Enable
-          if [ -f /sys/touchpanel/double_tap ]; then
-            write /sys/touchpanel/double_tap 1;
-          fi
+          write_boot;
 
+          # Service Double Tap To Wake (DT2W) Auto Enable
           if [ -d /data/adb/service.d ]; then
             echo '#!/system/bin/sh' > /data/adb/service.d/dt2w.sh
             echo 'sleep 5' >> /data/adb/service.d/dt2w.sh
             echo 'echo 1 > /sys/touchpanel/double_tap' >> /data/adb/service.d/dt2w.sh
             chmod 755 /data/adb/service.d/dt2w.sh
           fi
-
-          write_boot;
           EOF
 
           chmod -R 755 tools/
-
           zip -r9 Kernel_Valeryn-Nethunter-Chime-RT5370_Driver.zip * -x .git README.md
 
       - name: Upload Kernel Artifact
