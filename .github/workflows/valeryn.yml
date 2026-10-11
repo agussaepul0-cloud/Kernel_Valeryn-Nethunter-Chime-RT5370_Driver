@@ -42,13 +42,15 @@ jobs:
           rm -rf out
           mkdir -p out
 
+          # --- HAPUS AUDIO CRDROID & GANTI DENGAN AUDIO RESMI XIAOMI ---
+          rm -rf techpack/audio
+          git clone https://github.com/MiCode/Xiaomi_Kernel_OpenSource.git -b chime-r-oss --depth=1 xiaomi_official
+          cp -r xiaomi_official/techpack/audio techpack/audio
+          rm -rf xiaomi_official
+          # -------------------------------------------------------------
+
           # 1. Load Defconfig Murni Bawaan Redmi 9T / Chime
           make O=out "${MAKE_ARGS[@]}" vendor/bengal-perf_defconfig
-
-          # --- FIX AUDIO SEMBER (DTS & Kernel Config Level) ---
-          find techpack/audio/ -type f \( -name "*.dtsi" -o -name "*.dts" \) -exec sed -i 's/qcom,mbhc-gnd-swh;/ \/\/ qcom,mbhc-gnd-swh;/g' {} + 2>/dev/null || true
-          scripts/config --file out/.config --disable CONFIG_SND_SOC_WCD_MBHC
-          # -------------------------------------------------------------
 
           # 2. Injeksi Driver Wireless NetHunter RT5370 & Core HID
           scripts/config --file out/.config --enable CONFIG_NET
@@ -128,7 +130,7 @@ jobs:
 
           cd AnyKernel3
 
-          # --- FIX ERROR 1 TWRP ---
+          # --- FIX ERROR 1 TWRP (Manual Block Boot Definition) ---
           cat << 'EOF' > anykernel.sh
           # AnyKernel3 Ramdisk Mod Script
           # osm0sis @ xda-developers
@@ -144,7 +146,7 @@ jobs:
           supported.patchlevels=
           '; }
 
-          block=auto;
+          block=/dev/block/bootdevice/by-name/boot;
           is_slot_device=0;
           ramdisk_compression=auto;
           patch_vbmeta_flag=auto;
