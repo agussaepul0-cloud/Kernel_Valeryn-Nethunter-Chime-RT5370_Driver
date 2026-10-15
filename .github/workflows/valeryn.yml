@@ -1,4 +1,4 @@
-Name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
+name: Kernel_Valeryn-Nethunter-Chime-RT5370_Driver
 
 on:
   workflow_dispatch:
@@ -117,7 +117,7 @@ jobs:
 
           [ -f kernel/out/arch/arm64/boot/dtbo.img ] && cp kernel/out/arch/arm64/boot/dtbo.img AnyKernel3/dtbo.img
 
-          # Salin modul kernel agar driver audio & hardware sinkron
+          # Salin modul kernel
           mkdir -p AnyKernel3/modules/system/lib/modules
           find kernel/out/ -name "*.ko" -exec cp {} AnyKernel3/modules/system/lib/modules/ \;
 
